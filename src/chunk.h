@@ -9,6 +9,13 @@ typedef enum {
     OP_RETURN, //return from the current function
 } OpCode;
 
+typedef struct {
+    int count;
+    int capacity;
+    int linecount;
+    int line;
+} LineArray;
+
 // This is a dynamic array...?
 // count is the number of entries in use
 // capacity is the number of elements allocated

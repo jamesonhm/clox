@@ -19,6 +19,21 @@ void freeChunk(Chunk *chunk) {
     initChunk(chunk);
 }
 
+/* 
+static void writeLine(Chunk* chunk, int line) {
+    if (chunk->lines[capacity < chunk->lines->count + 1) {
+        int oldCapacity = chunk->lines->capacity;
+        chunk->lines->capacity = GROW_CAPACITY(oldCapacity);
+        chunk->lines = GROW_ARRAY(CLine, chunk->lines, oldCapacity, chunk->lines->capacity);
+    }
+
+    if (chunk->lines->line == line) {
+        chunk->lines->linecount++;
+    } else {
+        chunk->lines->
+}
+*/
+
 void writeChunk(Chunk *chunk, uint8_t byte, int line) {
     if (chunk->capacity < chunk->count + 1) {
         int oldCapacity = chunk->capacity;
