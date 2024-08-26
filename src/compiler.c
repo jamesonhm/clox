@@ -5,6 +5,7 @@
 #include "common.h"
 #include "compiler.h"
 #include "scanner.h"
+#include "value.h"
 
 typedef struct {
     Token current;
@@ -12,6 +13,31 @@ typedef struct {
     bool hadError;
     bool panicMode;
 } Parser;
+
+// precedence in order from lowest to highest
+typedef enum {
+    PREC_NONE,
+    PREC_ASSIGNMENT,    // =
+    PREC_OR,            // or
+    PREC_AND,           // and
+    PREC_EQUALITY,      // == !=
+    PREC_COMPARISON,    // < > <= >=
+    PREC_TERM,          // + -
+    PREC_FACTOR,        // * /
+    PREC_UNARY,         // ! -
+    PREC_CALL,          // . ()
+    PREC_PRIMARY
+} Precedence;
+
+// Hide C's syntax for function pointer types behind typedef
+typedef void (*ParseFn)();
+
+// This is a row in the parser table
+typedef struct {
+    ParseFn prefix;
+    ParseFn infix;
+    Precedence precedence;
+} ParseRule;
 
 Parser parser;
 Chunk* compilingChunk;
@@ -78,8 +104,67 @@ static void emitReturn() {
     emitByte(OP_RETURN);
 }
 
+static uint8_t makeConstant(Value value) {
+    int constant = addConstant(currentChunk(), value);
+    if (constant > UINT8_MAX) {
+        error("Too many constants in one chunk.");
+        return 0;
+    }
+
+    return (uint8_t)constant;
+}
+
+static void emitConstant(Value value) {
+    emitBytes(OP_CONSTANT, makeConstant(value));
+}
+
 static void endCompiler() {
     emitReturn();
+}
+
+static void parsePrecedence(Precedence precedence) {
+
+}
+
+static void expression() {
+    parsePrecedence(PREC_ASSIGNMENT);
+}
+
+static void binary() {
+    TokenType operatorType = parser.previous.type;
+    ParseRule* rule = getRule(operatorType);
+    parsePrecedence((Precedence)(rule->precedence + 1));
+
+    switch (operatorType) {
+        case TOKEN_PLUS:        emitByte(OP_ADD); break;
+        case TOKEN_MINUS:       emitByte(OP_SUBTRACT); break;
+        case TOKEN_STAR:        emitByte(OP_MULTIPLY); break;
+        case TOKEN_SLASH:       emitByte(OP_DIVIDE); break;
+        default: return; // Unreachable
+    }
+}
+
+static void grouping() {
+    expression();
+    consume(TOKEN_RIGHT_PAREN, "Expect ')' after expression.");
+}
+
+static void number() {
+    double value = strtod(parser.previous.start, NULL);
+    emitConstant(value);
+}
+
+static void unary() {
+    TokenType operatorType = parser.previous.type;
+
+    // Compile the operand
+    parsePrecedence(PREC_UNARY);
+
+    // Emit the operator instruction
+    switch (operatorType) {
+        case TOKEN_MINUS: emitByte(OP_NEGATE); break;
+        default: return;
+    }
 }
 
 bool compile(const char* source, Chunk* chunk) {
