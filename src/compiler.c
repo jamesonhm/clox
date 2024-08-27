@@ -7,6 +7,10 @@
 #include "scanner.h"
 #include "value.h"
 
+#ifdef DEBUG_PRINT_CODE
+#include "debug.h"
+#endif
+
 typedef struct {
     Token current;
     Token previous;
@@ -121,6 +125,11 @@ static void emitConstant(Value value) {
 
 static void endCompiler() {
     emitReturn();
+#ifdef DEBUG_PRINT_CODE
+    if (!parser.hadError) {
+        disassembleChunk(currentChunk(), "code");
+    }
+#endif
 }
 
 // Forward Declarations
@@ -174,7 +183,7 @@ ParseRule rules[] = {
     [TOKEN_DOT]             = {NULL, NULL, PREC_NONE},
     [TOKEN_MINUS]           = {unary, binary, PREC_TERM},
     [TOKEN_PLUS]            = {NULL, binary, PREC_TERM},
-    [TOKEN_SEMICOLON]       = {NULL, NULL, PREC_FACTOR},
+    [TOKEN_SEMICOLON]       = {NULL, NULL, PREC_NONE},
     [TOKEN_SLASH]           = {NULL, binary, PREC_FACTOR},
     [TOKEN_STAR]            = {NULL, binary, PREC_FACTOR},
     [TOKEN_BANG]            = {NULL, NULL, PREC_NONE},
@@ -208,8 +217,24 @@ ParseRule rules[] = {
     [TOKEN_EOF]             = {NULL, NULL, PREC_NONE},
 };
 
+// look up prefix parser for current token (first token will always belong to prefix expression)
+// Then look for infix parser for next token
+// if found, prefix may be an operand for it if precedence is low enough
 static void parsePrecedence(Precedence precedence) {
+    advance();
+    ParseFn prefixRule = getRule(parser.previous.type)->prefix;
+    if (prefixRule == NULL) {
+        error("Expect expression");
+        return;
+    }
 
+    prefixRule();
+
+    while (precedence <= getRule(parser.current.type)->precedence) {
+        advance();
+        ParseFn infixRule = getRule(parser.previous.type)->infix;
+        infixRule();
+    }
 }
 
 static ParseRule* getRule(TokenType type) {
